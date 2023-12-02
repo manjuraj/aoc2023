@@ -1,231 +1,146 @@
-use core::fmt;
-use std::str::FromStr;
-
 use anyhow::Result;
-use once_cell::sync::Lazy;
-use regex::Regex;
+use core::fmt;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{digit1, space1},
+    combinator::map_res,
+    multi::separated_list1,
+    sequence::tuple,
+    IResult,
+};
 
 #[derive(Debug, Default)]
-struct Red(usize);
+struct Color(usize, usize, usize);
 
-impl FromStr for Red {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        static RED_REGEX: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r#"(?P<num>\d+) red"#).expect("failed to compile regex"));
-        let caps = RED_REGEX
-            .captures(s)
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        let num = caps
-            .name("num")
-            .and_then(|n| n.as_str().parse::<usize>().ok())
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        Ok(Red(num))
-    }
-}
-
-impl fmt::Display for Red {
+impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} red", self.0)
+        let Color(r, g, b) = self;
+        write!(f, "{} red, {} green, {} blue", r, g, b)
     }
 }
 
-#[derive(Debug, Default)]
-struct Green(usize);
-
-impl FromStr for Green {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        static GREEN_REGEX: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r#"(?P<num>\d+) green"#).expect("failed to compile regex"));
-        let caps = GREEN_REGEX
-            .captures(s)
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        let num = caps
-            .name("num")
-            .and_then(|n| n.as_str().parse::<usize>().ok())
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        Ok(Green(num))
-    }
-}
-
-impl fmt::Display for Green {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} green", self.0)
-    }
-}
-
-#[derive(Debug, Default)]
-struct Blue(usize);
-
-impl FromStr for Blue {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        static BLUE_REGEX: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r#"(?P<num>\d+) blue"#).expect("failed to compile regex"));
-        let caps = BLUE_REGEX
-            .captures(s)
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        let num = caps
-            .name("num")
-            .and_then(|n| n.as_str().parse::<usize>().ok())
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        Ok(Blue(num))
-    }
-}
-
-impl fmt::Display for Blue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} blue", self.0)
-    }
-}
-
-#[derive(Debug, Default)]
-struct Bag(Red, Green, Blue);
-
-impl FromStr for Bag {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        let mut bag = Bag(Red(0), Green(0), Blue(0));
-        for part in s.split(", ") {
-            if let Ok(red) = part.parse::<Red>() {
-                bag.0 = red;
-            } else if let Ok(green) = part.parse::<Green>() {
-                bag.1 = green;
-            } else if let Ok(blue) = part.parse::<Blue>() {
-                bag.2 = blue;
-            }
-        }
-        Ok(bag)
-    }
-}
-
-impl fmt::Display for Bag {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}, {}, {}", self.0, self.1, self.2)
+impl Color {
+    fn power(&self) -> usize {
+        let Color(r, g, b) = self;
+        r * g * b
     }
 }
 
 #[derive(Debug)]
 struct Game {
     id: usize,
-    bags: Vec<Bag>,
-}
-
-impl FromStr for Game {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        static GAME_REGEX: Lazy<Regex> = Lazy::new(|| {
-            Regex::new(r#"^Game (?P<id>\d+): (?P<rest>.*)"#).expect("failed to compile regex")
-        });
-        let caps = GAME_REGEX
-            .captures(s)
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        let id = caps
-            .name("id")
-            .and_then(|n| n.as_str().parse::<usize>().ok())
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        let rest = caps
-            .name("rest")
-            .ok_or(anyhow::anyhow!(format!("failed to parse: {}", s)))?;
-        let bags = rest
-            .as_str()
-            .split("; ")
-            .map(|line| line.parse::<Bag>())
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Game { id, bags })
-    }
+    rounds: Vec<Color>,
 }
 
 impl fmt::Display for Game {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Game {}: ", self.id)?;
-        for bag in &self.bags {
-            write!(f, "{}; ", bag)?;
+        let Game { id, rounds } = self;
+        write!(f, "Game {}: ", id)?;
+        for round in rounds {
+            write!(f, "{}; ", round)?;
         }
         Ok(())
     }
 }
 
 impl Game {
-    fn is_possible(&self, Bag(Red(ar), Green(ag), Blue(ab)): &Bag) -> bool {
-        self.bags.iter().all(|bag| {
-            let Bag(Red(r), Green(g), Blue(b)) = bag;
-            *r <= *ar && *g <= *ag && *b <= *ab
-        })
-    }
-
     fn power(&self) -> usize {
-        let Bag(Red(r), Green(g), Blue(b)) = self.bags.iter().fold(
-            Bag::default(),
-            |Bag(Red(ar), Green(ag), Blue(ab)), Bag(Red(r), Green(g), Blue(b))| {
-                Bag(Red(ar.max(*r)), Green(ag.max(*g)), Blue(ab.max(*b)))
-            },
-        );
-        r * g * b
+        self.rounds
+            .iter()
+            .fold(Color::default(), |Color(ar, ag, ab), Color(r, g, b)| {
+                Color(ar.max(*r), ag.max(*g), ab.max(*b))
+            })
+            .power()
     }
 }
-
 #[derive(Debug)]
 struct Games(Vec<Game>);
-
-impl FromStr for Games {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        let games = s
-            .lines()
-            .map(|line| line.parse::<Game>())
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Games(games))
-    }
-}
 
 impl fmt::Display for Games {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for game in &self.0 {
-            writeln!(f, "{} power = {}", game, game.power())?;
+            writeln!(f, "{}", game)?;
         }
         Ok(())
     }
 }
 
 impl Games {
-    fn possible_game_ids(&self, actual: &Bag) -> Vec<usize> {
+    fn sum_of_possible_game_ids(&self) -> usize {
+        static BAG: Color = Color(12, 13, 14);
         self.0
             .iter()
-            .filter(|game| game.is_possible(actual))
-            .map(|game| game.id)
-            .collect()
-    }
-
-    fn sum_of_possible_game_ids(&self, actual: &Bag) -> usize {
-        self.possible_game_ids(actual).iter().sum()
+            .filter_map(|Game { id, rounds }| {
+                rounds
+                    .iter()
+                    .all(|c| c.0 <= BAG.0 && c.1 <= BAG.1 && c.2 <= BAG.2)
+                    .then_some(*id)
+            })
+            .sum()
     }
 
     fn sum_of_power(&self) -> usize {
-        self.0.iter().map(|game| game.power()).sum()
+        self.0.iter().map(Game::power).sum()
     }
 }
 
+fn parse_game(input: &str) -> IResult<&str, Game> {
+    let (input, (_, id, _, rounds)) = tuple((
+        tag("Game "),
+        parse_usize,
+        tag(": "),
+        separated_list1(tag("; "), parse_rounds),
+    ))(input)?;
+    Ok((input, Game { id, rounds }))
+}
+
+fn parse_usize(input: &str) -> IResult<&str, usize> {
+    map_res(digit1, str::parse::<usize>)(input)
+}
+
+fn parse_rounds(input: &str) -> IResult<&str, Color> {
+    let (input, colors) = separated_list1(tag(", "), parse_color)(input)?;
+    let color = colors
+        .iter()
+        .fold(Color::default(), |Color(ar, ag, ab), &Color(r, g, b)| {
+            Color(ar.max(r), ag.max(g), ab.max(b))
+        });
+    Ok((input, color))
+}
+
+fn parse_color(input: &str) -> IResult<&str, Color> {
+    let (input, (num, _, color)) = tuple((
+        parse_usize,
+        space1,
+        alt((tag("red"), tag("green"), tag("blue"))),
+    ))(input)?;
+    let color = match color {
+        "red" => Color(num, 0, 0),
+        "green" => Color(0, num, 0),
+        "blue" => Color(0, 0, num),
+        _ => unreachable!(),
+    };
+    Ok((input, color))
+}
+
 pub fn part1_and_part2() -> Result<()> {
-    let input = include_str!("../../input/day02.txt");
-    let actual = Bag(Red(12), Green(13), Blue(14));
-    let games = input.parse::<Games>()?;
+    let games = include_str!("../../input/day02.txt")
+        .lines()
+        .map(parse_game)
+        .map(|res| res.map(|(_, game)| game))
+        .collect::<Result<Vec<_>, _>>()?;
+    let games = Games(games);
     tracing::debug!("games: \n{}", games);
-    tracing::info!(
-        "[part 1] sum of possible game ids: {:?}",
-        games.sum_of_possible_game_ids(&actual)
-    );
-    tracing::info!(
-        "[part 2] sum of power of all games: {:?}",
-        games.sum_of_power()
-    );
+
+    let part1 = games.sum_of_possible_game_ids();
+    tracing::info!("[part 1] sum of possible game ids: {:?}", part1);
+    assert_eq!(part1, 2268);
+
+    let part2 = games.sum_of_power();
+    tracing::info!("[part 2] sum of power of all games: {:?}", part2);
+    assert_eq!(part2, 63542);
+
     Ok(())
 }
 
@@ -235,10 +150,13 @@ mod tests {
 
     #[test]
     fn test_with_sample() -> Result<()> {
-        let input = include_str!("../../sample/day02.txt");
-        let actual = Bag(Red(12), Green(13), Blue(14));
-        let games = input.parse::<Games>()?;
-        assert_eq!(games.sum_of_possible_game_ids(&actual), 8);
+        let games = include_str!("../../sample/day02.txt")
+            .lines()
+            .map(parse_game)
+            .map(|res| res.map(|(_, game)| game))
+            .collect::<Result<Vec<_>, _>>()?;
+        let games = Games(games);
+        assert_eq!(games.sum_of_possible_game_ids(), 8);
         assert_eq!(games.sum_of_power(), 2286);
         Ok(())
     }

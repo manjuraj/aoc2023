@@ -7,7 +7,7 @@ use aoc2023::{day01, day02};
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_file(true)
-        .with_max_level(Level::DEBUG)
+        .with_max_level(Level::INFO)
         .compact()
         .init();
 
