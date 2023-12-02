@@ -1,0 +1,20 @@
+[package]
+name = "aoc2023"
+description = "Advent of Code 2023 - my answers in rust"
+authors = ["Manju Rajashekhar <manj@cs.stanford.edu>"]
+license = "Apache-2.0"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "aoc2023"
+path = "src/lib.rs"
+
+[[bin]]
+name = "aoc2023"
+path = "src/main.rs"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1"
