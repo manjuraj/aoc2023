@@ -2,12 +2,13 @@ use anyhow::Result;
 use std::{collections::HashSet, env};
 use tracing::Level;
 
-use aoc2023::{day01, day02, day03, day04};
+use aoc2023::{day01, day02, day03, day04, day05};
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_file(true)
         .with_max_level(Level::INFO)
+        .with_line_number(true)
         .compact()
         .init();
 
@@ -37,5 +38,12 @@ fn main() -> Result<()> {
         day04::part1_and_part2()?;
         tracing::info!("---");
     }
+
+    if args.is_empty() || args.contains("5") {
+        tracing::info!("Day 05");
+        day05::part1_and_part2()?;
+        tracing::info!("---");
+    }
+
     Ok(())
 }
