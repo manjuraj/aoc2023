@@ -291,7 +291,7 @@ fn parse_input(input: &str) -> IResult<&str, (Seeds, Maps)> {
 }
 
 pub fn part1_and_part2() -> Result<()> {
-    let input = include_str!("../../input/day05.txt");
+    let input = include_str!("../../sample/day05.txt");
     let Input(seeds, maps) = input.parse::<Input>()?;
 
     tracing::debug!("{}", seeds);
