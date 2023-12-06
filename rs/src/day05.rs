@@ -134,8 +134,8 @@ impl Maps {
 
         let len = ub - lb;
         let value_lb = self.map(lb);
-        let value_ub = self.map(ub);
-        if value_ub > value_lb && value_ub - value_lb == len {
+        let value_ub = self.map(ub - 1);
+        if value_ub > value_lb && value_ub - value_lb == len - 1 {
             // the map range (lb, ub) is monotonic and linear
             // hence we can return the minimum value directly
             value_lb
@@ -352,6 +352,48 @@ mod tests {
         let part2 = input.lowest_location_of_seed_ranges();
         assert_eq!(part2, 46);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_that_breaks_day5_part2_algo() -> Result<()> {
+        let seeds = vec![0, 100];
+        let maps1 = vec![Range {
+            src: 0,
+            dst: 100,
+            len: 100,
+        }];
+        let maps2 = vec![
+            Range {
+                src: 100,
+                dst: 100,
+                len: 50,
+            },
+            Range {
+                src: 150,
+                dst: 0,
+                len: 20,
+            },
+            Range {
+                src: 170,
+                dst: 170,
+                len: 30,
+            },
+        ];
+        let map1 = Map::new(maps1);
+        let map2 = Map::new(maps2);
+        let maps = Maps(vec![map1, map2]);
+        assert_eq!(maps.map(0), 100);
+        assert_eq!(maps.map(99), 199);
+        assert_eq!(maps.map(100), 100);
+        assert_eq!(maps.map(50), 0);
+        assert_eq!(maps.map(69), 19);
+        assert_eq!(maps.map(70), 170);
+        let input = Input(Seeds(seeds), maps);
+        assert_eq!(input.lowest_location(), 100);
+
+        // should print 0, but prints 100
+        // assert_eq!(input.lowest_location_of_seed_ranges(), 0);
         Ok(())
     }
 
