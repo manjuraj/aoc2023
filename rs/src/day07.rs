@@ -51,6 +51,15 @@ impl TryFrom<u8> for Card {
 
 impl Card {
     const NUM_CARDS: usize = 13;
+
+    fn joker_cmp((this, that): (&Self, &Self)) -> Ordering {
+        match (this, that) {
+            (Card::J, Card::J) => Ordering::Equal,
+            (Card::J, _) => Ordering::Less,
+            (_, Card::J) => Ordering::Greater,
+            _ => this.cmp(that),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
@@ -189,12 +198,7 @@ impl Ord for JokerHand {
             hand.0
                 .iter()
                 .zip(other_hand.0.iter())
-                .map(|(card, other_card)| match (card, other_card) {
-                    (Card::J, Card::J) => Ordering::Equal,
-                    (Card::J, _) => Ordering::Less,
-                    (_, Card::J) => Ordering::Greater,
-                    _ => card.cmp(other_card),
-                })
+                .map(Card::joker_cmp)
                 .find(|&order| order != Ordering::Equal)
                 .unwrap_or(Ordering::Equal)
         })
