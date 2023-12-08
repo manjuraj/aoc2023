@@ -9,7 +9,7 @@ use nom::{
     IResult,
 };
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 enum Card {
     Two,
     Three,
@@ -20,7 +20,7 @@ enum Card {
     Eight,
     Nine,
     Ten,
-    J, // Jack or Joker
+    J, // Jack / Joker
     Q, // Queen
     K, // King
     A, // Ace
@@ -51,23 +51,10 @@ impl TryFrom<u8> for Card {
 
 impl Card {
     const NUM_CARDS: usize = 13;
-
-    fn j_as_jack_cmp(&self, other: &Self) -> Ordering {
-        self.cmp(other)
-    }
-
-    fn j_as_joker_cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Card::J, Card::J) => Ordering::Equal,
-            (Card::J, _) => Ordering::Less,
-            (_, Card::J) => Ordering::Greater,
-            _ => self.cmp(other),
-        }
-    }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Hash)]
-enum HandKind {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+enum HandType {
     HighCard,
     OnePair,
     TwoPairs,
@@ -77,61 +64,67 @@ enum HandKind {
     FiveOfAKind,
 }
 
-impl HandKind {
-    fn from_counts(counts: [usize; 13]) -> Self {
+impl From<[usize; 13]> for HandType {
+    fn from(counts: [usize; 13]) -> Self {
         if counts.iter().any(|&count| count == 5) {
             // All five cards have the same label
             // e.g., AAAAA
-            HandKind::FiveOfAKind
+            HandType::FiveOfAKind
         } else if counts.iter().any(|&count| count == 4) {
             // Four cards have the same label and one card has a different label
             // e.g., AA8AA
             assert!(counts.iter().filter(|&&count| count == 4).count() == 1);
-            HandKind::FourOfAKind
+            HandType::FourOfAKind
         } else if counts.iter().any(|&count| count == 3) && counts.iter().any(|&count| count == 2) {
             // Three cards have the same label, and the remaining two cards share a different label
             // e.g., 23332
-            HandKind::FullHouse
+            HandType::FullHouse
         } else if counts.iter().any(|&count| count == 3) {
             // Three cards have the same label, and the remaining two cards are each different
             // from any other card in the hand
             // e.g., TTT98
             assert!(counts.iter().filter(|&&count| count == 1).count() == 2);
-            HandKind::ThreeOfAKind
+            HandType::ThreeOfAKind
         } else if counts.iter().filter(|&&count| count == 2).count() == 2 {
             // Two cards share one label, two other cards share a second label,
             // and the remaining card has a third label
             // e.g., 23432
             assert!(counts.iter().filter(|&&count| count == 1).count() == 1);
-            HandKind::TwoPairs
+            HandType::TwoPairs
         } else if counts.iter().any(|&count| count == 2) {
             // Two cards share one label, and the other three cards have a different label
             // from the pair and each other
             // e.g., A23A4
             assert!(counts.iter().filter(|&&count| count == 1).count() == 3);
-            HandKind::OnePair
+            HandType::OnePair
         } else {
             // All cards' labels are distinct
             // e.g., 23456
             assert!(counts.iter().filter(|&&count| count == 1).count() == 5);
-            HandKind::HighCard
+            HandType::HighCard
         }
     }
+}
 
-    fn from_with_j_as_jack(value: Hand) -> Self {
+impl<'a> From<&'a DefaultHand> for HandType {
+    fn from(value: &'a DefaultHand) -> Self {
         let counts = value
             .0
+             .0
             .iter()
             .fold([0usize; Card::NUM_CARDS], |mut counts, card| {
                 counts[*card as usize] += 1;
                 counts
             });
-        Self::from_counts(counts)
+        counts.into()
     }
+}
 
-    fn from_with_j_as_joker(value: Hand) -> Self {
+impl<'a> From<&'a JokerHand> for HandType {
+    fn from(value: &'a JokerHand) -> Self {
         let mut counts = value
             .0
+             .0
             .iter()
             .fold([0usize; Card::NUM_CARDS], |mut counts, card| {
                 counts[*card as usize] += 1;
@@ -146,11 +139,11 @@ impl HandKind {
             *max_value += jokers_count;
         }
 
-        Self::from_counts(counts)
+        counts.into()
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 struct Hand([Card; 5]);
 
 impl FromStr for Hand {
@@ -163,6 +156,54 @@ impl FromStr for Hand {
             cards[i] = Card::try_from(byte)?;
         }
         Ok(Hand(cards))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DefaultHand(Hand);
+
+impl Ord for DefaultHand {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let kind = HandType::from(self);
+        let other_kind = HandType::from(other);
+        kind.cmp(&other_kind).then(self.0.cmp(&other.0))
+    }
+}
+
+impl PartialOrd for DefaultHand {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct JokerHand(Hand);
+
+impl Ord for JokerHand {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let kind = HandType::from(self);
+        let other_kind = HandType::from(other);
+        kind.cmp(&other_kind).then({
+            let hand = self.0;
+            let other_hand = other.0;
+            hand.0
+                .iter()
+                .zip(other_hand.0.iter())
+                .map(|(card, other_card)| match (card, other_card) {
+                    (Card::J, Card::J) => Ordering::Equal,
+                    (Card::J, _) => Ordering::Less,
+                    (_, Card::J) => Ordering::Greater,
+                    _ => card.cmp(other_card),
+                })
+                .find(|&order| order != Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
+        })
+    }
+}
+
+impl PartialOrd for JokerHand {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -199,46 +240,26 @@ impl FromStr for Games {
 }
 
 impl Games {
-    fn winnings_with_j_as_jack(&self) -> usize {
+    fn winnings(&self) -> usize {
         self.0
             .iter()
             .sorted_by(|game, other_game| {
-                let hand_kind = HandKind::from_with_j_as_jack(game.hand);
-                let other_hand_kind = HandKind::from_with_j_as_jack(other_game.hand);
-                match hand_kind.cmp(&other_hand_kind) {
-                    Ordering::Equal => game
-                        .hand
-                        .0
-                        .iter()
-                        .zip(other_game.hand.0)
-                        .map(|(card, other_card)| card.j_as_jack_cmp(&other_card))
-                        .find(|&order| order != Ordering::Equal)
-                        .unwrap_or(Ordering::Equal),
-                    order => order,
-                }
+                let hand = DefaultHand(game.hand);
+                let other_hand = DefaultHand(other_game.hand);
+                hand.cmp(&other_hand)
             })
             .enumerate()
             .map(|(i, game)| game.bid * (i + 1))
             .sum()
     }
 
-    fn winnings_with_j_as_joker(&self) -> usize {
+    fn winnings_with_joker(&self) -> usize {
         self.0
             .iter()
             .sorted_by(|game, other_game| {
-                let hand_kind = HandKind::from_with_j_as_joker(game.hand);
-                let other_hand_kind = HandKind::from_with_j_as_joker(other_game.hand);
-                match hand_kind.cmp(&other_hand_kind) {
-                    Ordering::Equal => game
-                        .hand
-                        .0
-                        .iter()
-                        .zip(other_game.hand.0)
-                        .map(|(card, other_card)| card.j_as_joker_cmp(&other_card))
-                        .find(|&order| order != Ordering::Equal)
-                        .unwrap_or(Ordering::Equal),
-                    order => order,
-                }
+                let hand = JokerHand(game.hand);
+                let other_hand = JokerHand(other_game.hand);
+                hand.cmp(&other_hand)
             })
             .enumerate()
             .map(|(i, game)| game.bid * (i + 1))
@@ -258,11 +279,11 @@ pub fn part1_and_part2() -> Result<()> {
     let input = include_str!("../../input/day07.txt");
     let games = input.parse::<Games>()?;
 
-    let part1 = games.winnings_with_j_as_jack();
+    let part1 = games.winnings();
     tracing::info!("[part 1] total winnings: {}", part1);
     assert_eq!(part1, 250602641);
 
-    let part2 = games.winnings_with_j_as_joker();
+    let part2 = games.winnings_with_joker();
     tracing::info!("[part 2] total winnings: {}", part2);
     assert_eq!(part2, 251037509);
 
@@ -278,10 +299,10 @@ mod tests {
         let input = include_str!("../../sample/day07.txt");
         let games = input.parse::<Games>()?;
 
-        let part1 = games.winnings_with_j_as_jack();
+        let part1 = games.winnings();
         assert_eq!(part1, 6440);
 
-        let part2 = games.winnings_with_j_as_joker();
+        let part2 = games.winnings_with_joker();
         assert_eq!(part2, 5905);
         Ok(())
     }
