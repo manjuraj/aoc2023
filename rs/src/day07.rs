@@ -74,43 +74,16 @@ enum HandType {
 }
 
 impl From<[usize; 13]> for HandType {
-    fn from(counts: [usize; 13]) -> Self {
-        if counts.iter().any(|&count| count == 5) {
-            // All five cards have the same label
-            // e.g., AAAAA
-            HandType::FiveOfAKind
-        } else if counts.iter().any(|&count| count == 4) {
-            // Four cards have the same label and one card has a different label
-            // e.g., AA8AA
-            assert!(counts.iter().filter(|&&count| count == 4).count() == 1);
-            HandType::FourOfAKind
-        } else if counts.iter().any(|&count| count == 3) && counts.iter().any(|&count| count == 2) {
-            // Three cards have the same label, and the remaining two cards share a different label
-            // e.g., 23332
-            HandType::FullHouse
-        } else if counts.iter().any(|&count| count == 3) {
-            // Three cards have the same label, and the remaining two cards are each different
-            // from any other card in the hand
-            // e.g., TTT98
-            assert!(counts.iter().filter(|&&count| count == 1).count() == 2);
-            HandType::ThreeOfAKind
-        } else if counts.iter().filter(|&&count| count == 2).count() == 2 {
-            // Two cards share one label, two other cards share a second label,
-            // and the remaining card has a third label
-            // e.g., 23432
-            assert!(counts.iter().filter(|&&count| count == 1).count() == 1);
-            HandType::TwoPairs
-        } else if counts.iter().any(|&count| count == 2) {
-            // Two cards share one label, and the other three cards have a different label
-            // from the pair and each other
-            // e.g., A23A4
-            assert!(counts.iter().filter(|&&count| count == 1).count() == 3);
-            HandType::OnePair
-        } else {
-            // All cards' labels are distinct
-            // e.g., 23456
-            assert!(counts.iter().filter(|&&count| count == 1).count() == 5);
-            HandType::HighCard
+    fn from(mut counts: [usize; 13]) -> Self {
+        counts.sort_by(|a, b| b.cmp(a));
+        match counts {
+            [5, ..] => HandType::FiveOfAKind,
+            [4, 1, ..] => HandType::FourOfAKind,
+            [3, 2, ..] => HandType::FullHouse,
+            [3, 1, 1, ..] => HandType::ThreeOfAKind,
+            [2, 2, 1, ..] => HandType::TwoPairs,
+            [2, 1, 1, 1, ..] => HandType::OnePair,
+            _ => HandType::HighCard,
         }
     }
 }
