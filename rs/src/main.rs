@@ -2,7 +2,9 @@ use anyhow::Result;
 use std::{collections::HashSet, env};
 use tracing::Level;
 
-use aoc2023::{day01, day02, day03, day04, day05, day06, day07, day08, day09, day10, day11, day13};
+use aoc2023::{
+    day01, day02, day03, day04, day05, day06, day07, day08, day09, day10, day11, day13, day14,
+};
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -84,6 +86,13 @@ fn main() -> Result<()> {
     if args.is_empty() || args.contains("13") {
         tracing::info!("Day 13");
         day13::part1_and_part2()?;
+        tracing::info!("---");
+    }
+
+    if args.is_empty() || args.contains("14") {
+        tracing::info!("Day 14");
+        day14::part1()?;
+        day14::part2()?;
         tracing::info!("---");
     }
 
