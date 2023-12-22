@@ -4,7 +4,7 @@ use tracing::Level;
 
 use aoc2023::{
     day01, day02, day03, day04, day05, day06, day07, day08, day09, day10, day11, day13, day14,
-    day15,
+    day15, day16,
 };
 
 fn main() -> Result<()> {
@@ -101,6 +101,13 @@ fn main() -> Result<()> {
         tracing::info!("Day 15");
         day15::part1()?;
         day15::part2()?;
+        tracing::info!("---");
+    }
+
+    if args.is_empty() || args.contains("16") {
+        tracing::info!("Day 16");
+        day16::part1()?;
+        day16::part2()?;
         tracing::info!("---");
     }
 
